@@ -96,9 +96,8 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 		if (person_score[person1] != ARTIST_FAN) continue;
 
 		// Initializers for qualifying friends
-		unsigned int* qualifying_friends = (unsigned int*) 
-											malloc(person_map[person1].knows_n 
-												   * sizeof(unsigned int));
+		unsigned int* qualifying_friends = (unsigned int*) malloc(person_map[person1].knows_n 
+												  				  * sizeof(unsigned int));
 		unsigned int qualifying_n = 0;
 
 		for (unsigned long knows1 = person_map[person1].knows_first; 
@@ -136,7 +135,7 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 					knows2 < person_map[person2].knows_first + person_map[person2].knows_n; 
 					knows2++) 
 				{
-					if (person3 == knows2) 
+					if (person3 == knows_map[knows2]) 
 					{
 						// add Result record
 						results[result_length].person1_id = person_map[person1].person_id;
