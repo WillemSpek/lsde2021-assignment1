@@ -26,6 +26,12 @@ typedef struct {
 	unsigned char  score;
 } Result;
 
+typedef struct {
+	unsigned int* qualifying_friends;
+	unsigned short qualifying_n;
+	unsigned int qualifying_first;
+} Qualifying;
+
 int result_comparator(const void *v1, const void *v2) {
 	Result *r1 = (Result *) v1;
 	Result *r2 = (Result *) v2;
@@ -69,14 +75,15 @@ signed char get_score(unsigned int person, unsigned short artist, unsigned short
 void query(unsigned short qid, unsigned short artist, unsigned short artists[], unsigned short bdstart, unsigned short bdend) {
 	unsigned int result_length = 0, result_maxsize = 15000;
 	Result* results = (Result*) malloc(result_maxsize * sizeof(Result));
-	signed char* person_score = (signed char*) malloc(person_num * sizeof(signed char));
+	signed char* person_score = (signed char*) malloc(person_num);
 
 	printf("Running query %d\n", qid);
 
+	// Materialize interest scores.
 	for (unsigned int person1 = 0; person1 < person_num; person1++) {
 		person_score[person1] = get_score(person1, artist, artists);
 	}
-
+	
 	for (unsigned int person1 = 0; person1 < person_num; person1++) {
 		if (person1 > 0 && person1 % REPORTING_N == 0) {
 			printf("%.2f%%\n", 100 * (person1 * 1.0/person_num));
@@ -88,52 +95,63 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 		// checks whether person1 likes artist 
 		if (person_score[person1] != ARTIST_FAN) continue;
 
-		for (unsigned long knows2 = person_map[person1].knows_first; 
-		     knows2 < person_map[person1].knows_first + person_map[person1].knows_n; 
-		     knows2++) 
+		// Initializers for qualifying friends
+		unsigned int* qualifying_friends = (unsigned int*) 
+											malloc(person_map[person1].knows_n 
+												   * sizeof(unsigned int));
+		unsigned int qualifying_n = 0;
+
+		for (unsigned long knows1 = person_map[person1].knows_first; 
+		     knows1 < person_map[person1].knows_first + person_map[person1].knows_n; 
+		     knows1++) 
 		{
-			unsigned int person2 = knows_map[knows2];
+			unsigned int person2 = knows_map[knows1];
 
 			signed char score2 = person_score[person2];
 			if (score2 < 2) continue; // checks whether person2 likely likes artist 
 
 			// checks whether person1 and friend2 live in the same city 
 			if (person_map[person1].location != person_map[person2].location) continue;
+			
+			// Update data on qualifying friends.
+			qualifying_friends[qualifying_n] = person2;
+			qualifying_n += 1;
+		}
 
-			for (unsigned long knows3 = person_map[person2].knows_first; 
-			     knows3 < person_map[person2].knows_first + person_map[person2].knows_n; 
-			     knows3++) 
+		// Iterate over each combination of person2 and person3.
+		for (unsigned short qualifying_idx2 = 0; 
+		     qualifying_idx2 < qualifying_n; 
+		     qualifying_idx2++)
+		{
+			unsigned int person2 = qualifying_friends[qualifying_idx2];
+
+			for (unsigned short qualifying_idx3 = qualifying_idx2 + 1; 
+				qualifying_idx3 < qualifying_n; 
+				qualifying_idx3++) 
 			{
-				unsigned int person3 = knows_map[knows3];
-
-				// check that person3 > person2 (in order to avoid duplicate triangles)
-				if (person2 > person3) continue; // only report triangle when person2 < person3
-
-				// checks whether person1 and person3 live in the same city 
-				if (person_map[person1].location != person_map[person3].location) continue;
-
-				signed char score3 = person_score[person3];
-				if (score3 < 2) continue; // checks whether person3 likely likes artist 
-
-				for (unsigned long knows4 = person_map[person3].knows_first; 
-				     knows4 < person_map[person3].knows_first + person_map[person3].knows_n; 
-				     knows4++) 
+				unsigned int person3 = qualifying_friends[qualifying_idx3];
+				
+				// Look for person3 being a friend of person2.
+				for (unsigned long knows2 = person_map[person2].knows_first; 
+					knows2 < person_map[person2].knows_first + person_map[person2].knows_n; 
+					knows2++) 
 				{
-					// check whether they form a triangle, i.e. person1->person2->person3->person1
-					if (person1 != knows_map[knows4]) continue;
-
-					// add Result record
-					results[result_length].person1_id = person_map[person1].person_id;
-					results[result_length].person2_id = person_map[person2].person_id;
-					results[result_length].person3_id = person_map[person3].person_id;
-					results[result_length].score = score2 + score3;
-					if (++result_length >= result_maxsize) { // realloc result array if we run out of space
-						results = (Result*) realloc(results, (result_maxsize*=2) * sizeof(Result));
+					if (person3 == knows2) 
+					{
+						// add Result record
+						results[result_length].person1_id = person_map[person1].person_id;
+						results[result_length].person2_id = person_map[person2].person_id;
+						results[result_length].person3_id = person_map[person3].person_id;
+						results[result_length].score = person_score[person2] + person_score[person3];
+						if (++result_length >= result_maxsize) { // realloc result array if we run out of space
+							results = (Result*) realloc(results, (result_maxsize*=2) * sizeof(Result));
+						}
+						break; // Go to the next combination.
 					}
-					break;
-				}
+				} 
 			}
 		}
+		free(qualifying_friends);
 	}
 
 	// sort the results 
@@ -144,6 +162,7 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 		fprintf(outfile, "%d|%d|%lu|%lu|%lu\n", qid, results[i].score, 
 			results[i].person1_id, results[i].person2_id, results[i].person3_id);
 	}
+	free(person_score);
 	free(results);
 }
 
