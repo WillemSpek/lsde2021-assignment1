@@ -69,8 +69,13 @@ signed char get_score(unsigned int person, unsigned short artist, unsigned short
 void query(unsigned short qid, unsigned short artist, unsigned short artists[], unsigned short bdstart, unsigned short bdend) {
 	unsigned int result_length = 0, result_maxsize = 15000;
 	Result* results = (Result*) malloc(result_maxsize * sizeof(Result));
+	signed char* person_score = (signed char*) malloc(person_num * sizeof(signed char));
 
 	printf("Running query %d\n", qid);
+
+	for (unsigned int person1 = 0; person1 < person_num; person1++) {
+		person_score[person1] = get_score(person1, artist, artists);
+	}
 
 	for (unsigned int person1 = 0; person1 < person_num; person1++) {
 		if (person1 > 0 && person1 % REPORTING_N == 0) {
@@ -81,7 +86,7 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 		    person_map[person1].birthday > bdend) continue; 
 
 		// checks whether person1 likes artist 
-		if (get_score(person1, artist, artists) != ARTIST_FAN) continue;
+		if (person_score[person1] != ARTIST_FAN) continue;
 
 		for (unsigned long knows2 = person_map[person1].knows_first; 
 		     knows2 < person_map[person1].knows_first + person_map[person1].knows_n; 
@@ -89,7 +94,7 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 		{
 			unsigned int person2 = knows_map[knows2];
 
-			signed char score2 = get_score(person2, artist, artists);
+			signed char score2 = person_score[person2];
 			if (score2 < 2) continue; // checks whether person2 likely likes artist 
 
 			// checks whether person1 and friend2 live in the same city 
@@ -107,7 +112,7 @@ void query(unsigned short qid, unsigned short artist, unsigned short artists[], 
 				// checks whether person1 and person3 live in the same city 
 				if (person_map[person1].location != person_map[person3].location) continue;
 
-				signed char score3 = get_score(person3, artist, artists);
+				signed char score3 = person_score[person3];
 				if (score3 < 2) continue; // checks whether person3 likely likes artist 
 
 				for (unsigned long knows4 = person_map[person3].knows_first; 
